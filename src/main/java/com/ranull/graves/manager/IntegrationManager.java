@@ -1197,10 +1197,17 @@ public class IntegrationManager {
         if (plugin.getConfig().getBoolean("settings.integration.skript.enabled", true)) {
             Plugin skriptPlugin = plugin.getServer().getPluginManager().getPlugin("Skript");
                 if (skriptPlugin != null && skriptPlugin.isEnabled()) {
+                    if (!hasModernSkriptApi()) {
+                        plugin.integrationMessage("Skript " + skriptPlugin.getDescription().getVersion()
+                                + " does not provide the Skript 2.15.3+ registration API required by the GravesX"
+                                + " Skript integration. Skipping the Skript hook; everything else loads normally.", "warning");
+                        skriptImpl = null;
+                        return;
+                    }
                     try {
                         skriptImpl = new SkriptImpl(plugin);
                         plugin.integrationMessage("Hooked into " + skriptPlugin.getName() + " " + skriptPlugin.getDescription().getVersion() + ".");
-                    } catch (Exception e) {
+                    } catch (Exception | LinkageError e) {
                         plugin.integrationMessage("Failed to Hook into " + skriptPlugin.getName() + " " + skriptPlugin.getDescription().getVersion() + ". Skript implementation will not work and may cause skripts to break.", "severe");
                         skriptImpl = null;
                     }
@@ -1209,6 +1216,23 @@ public class IntegrationManager {
                 }
         } else {
             skriptImpl = null;
+        }
+    }
+
+    /**
+     * Checks whether the installed Skript exposes the modern registration API
+     * (org.skriptlang eventvalue registry, added in Skript 2.15.x) that the
+     * GravesX Skript syntax classes register through from static initializers.
+     * On older Skript versions those static blocks throw NoClassDefFoundError,
+     * which would otherwise escape onEnable and disable the whole plugin.
+     */
+    private boolean hasModernSkriptApi() {
+        try {
+            Class.forName("org.skriptlang.skript.bukkit.lang.eventvalue.EventValueRegistry",
+                    false, SkriptImpl.class.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException | LinkageError e) {
+            return false;
         }
     }
 

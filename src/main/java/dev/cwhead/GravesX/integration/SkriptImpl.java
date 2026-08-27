@@ -104,7 +104,7 @@ public class SkriptImpl {
             registerExpressions();
 
             plugin.integrationMessage("Skript integration loaded successfully.");
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) {
             plugin.getLogger().severe("Failed to load Skript implementation");
             plugin.logStackTrace(e);
         }
