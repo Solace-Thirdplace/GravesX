@@ -9,6 +9,7 @@ import com.ranull.graves.type.Grave;
 import com.ranull.graves.util.InventoryUtil;
 import com.ranull.graves.util.StringUtil;
 import dev.cwhead.GravesX.event.GraveItemTakeEvent;
+import dev.cwhead.GravesX.graveutils.GravePreviewHolder;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
@@ -57,6 +58,31 @@ public class InventoryClickListener implements Listener {
 
         Inventory top = CompatibilityInventoryView.getTopInventory(event);
         InventoryHolder topHolder = top.getHolder();
+
+        if (topHolder instanceof GravePreviewHolder) {
+            event.setCancelled(true);
+            return;
+        }
+
+        if (topHolder instanceof Grave topGrave) {
+            // Gate on the TOP inventory, not just the clicked one: cross-inventory
+            // actions (double-click collect-to-cursor, shift-clicks from the bottom
+            // inventory) move items in and out of the grave while the clicked
+            // inventory is the player's own, so a clicked-only check misses them.
+            if (topGrave.getGravePreview() || !plugin.getEntityManager().canOpenGrave(player, topGrave)) {
+                event.setCancelled(true);
+                return;
+            }
+
+            InventoryAction action = event.getAction();
+            if (action == InventoryAction.COLLECT_TO_CURSOR || action == InventoryAction.MOVE_TO_OTHER_INVENTORY) {
+                // Allowed viewer moved items across inventories; persist the grave
+                // contents, since the clicked-grave take path below never sees these.
+                plugin.getSchedulerManager().runTaskLater(() ->
+                        plugin.getDataManager().updateGrave(topGrave, "inventory",
+                                InventoryUtil.inventoryToString(topGrave.getInventory(), plugin)), 1L);
+            }
+        }
 
         if (clicked.getHolder() instanceof Grave grave) {
             handleGraveInventoryClick(event, player, grave);

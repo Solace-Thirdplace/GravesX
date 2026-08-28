@@ -18,6 +18,7 @@ import dev.cwhead.GravesX.api.provider.RegisterGraveProviders;
 import dev.cwhead.GravesX.event.*;
 import dev.cwhead.GravesX.exception.GravesXGraveProviderException;
 import dev.cwhead.GravesX.exception.GravesXNullPointerException;
+import dev.cwhead.GravesX.graveutils.GravePreviewHolder;
 import me.jay.GravesX.util.pluginsWithoutMavenReposOrUsefulApiDocsThatCauseBugs.ReflectSupportAE;
 import com.ranull.graves.util.StringUtil;
 import org.bukkit.*;
@@ -2308,17 +2309,14 @@ public class GraveManager {
         } else {
             plugin.getSchedulerManager().execute(anchor, () -> {
                 boolean protPreview = plugin.getConfigManager().getConfigSection("protection.preview", grave).getBoolean("protection.preview", false);
-                boolean gravePreview = plugin.getConfigManager().getConfigSection("grave.preview", grave).getBoolean("grave.preview", false);
 
-                if (protPreview && gravePreview) {
-                    grave.setGravePreview(preview);
-                    player.openInventory(grave.getInventory());
-                    plugin.getEntityManager().runCommands("event.command.open", player, location, grave);
-                    plugin.getEntityManager().playWorldSound("sound.open", location, grave);
-
-                } else if (protPreview) {
-                    grave.setGravePreview(false);
-                    player.openInventory(grave.getInventory());
+                if (protPreview) {
+                    // Never hand a blocked player the live grave inventory: cross-inventory
+                    // click actions (e.g. double-click collect-to-cursor on the bottom
+                    // inventory) pull items out of the top inventory without ever being a
+                    // "click in the grave", so protection cannot be enforced per-click.
+                    // A snapshot copy makes the preview read-only by construction.
+                    player.openInventory(createPreviewInventory(grave));
                     plugin.getEntityManager().runCommands("event.command.open", player, location, grave);
                     plugin.getEntityManager().playWorldSound("sound.open", location, grave);
 
@@ -2330,6 +2328,40 @@ public class GraveManager {
         }
 
         return false;
+    }
+
+    /**
+     * Builds a read-only snapshot copy of a grave's inventory for previewing.
+     * <p>
+     * The returned inventory is held by a {@link GravePreviewHolder}, which the
+     * inventory listeners treat as fully non-interactable, and contains clones of
+     * the live grave contents so nothing the viewer does can touch the real grave.
+     * </p>
+     *
+     * @param grave the grave to snapshot.
+     * @return the preview inventory.
+     */
+    public Inventory createPreviewInventory(Grave grave) {
+        Inventory source = grave.getInventory();
+
+        String title = plugin.getConfigManager().getConfigSection("gui.grave.title", grave).getString("gui.grave.title");
+        title = StringUtil.parseString(title, grave.getLocationDeath(), grave, plugin);
+        if (plugin.getIntegrationManager().hasMiniMessage()) {
+            title = MiniMessage.parseString(title);
+        }
+
+        GravePreviewHolder holder = new GravePreviewHolder(grave);
+        Inventory preview = plugin.getServer().createInventory(holder, source.getSize(), title);
+        holder.setInventory(preview);
+
+        ItemStack[] contents = source.getContents();
+        ItemStack[] copy = new ItemStack[contents.length];
+        for (int i = 0; i < contents.length; i++) {
+            copy[i] = contents[i] != null ? contents[i].clone() : null;
+        }
+        preview.setContents(copy);
+
+        return preview;
     }
 
     /**

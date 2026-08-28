@@ -7,6 +7,7 @@ import com.ranull.graves.inventory.GraveMenu;
 import com.ranull.graves.type.Grave;
 import com.ranull.graves.util.StringUtil;
 import dev.cwhead.GravesX.event.GraveItemTakeEvent;
+import dev.cwhead.GravesX.graveutils.GravePreviewHolder;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -50,6 +51,11 @@ public class InventoryDragListener implements Listener {
         Player player = (Player) event.getWhoClicked();
 
         if (inventoryHolder == null) return;
+
+        if (inventoryHolder instanceof GravePreviewHolder) {
+            event.setCancelled(true);
+            return;
+        }
 
         if (inventoryHolder instanceof Grave grave) {
             handleGraveInventoryDrag(event, player, grave);

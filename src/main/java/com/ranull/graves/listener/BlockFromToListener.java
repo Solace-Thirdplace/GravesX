@@ -4,6 +4,8 @@ import com.ranull.graves.Graves;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockFadeEvent;
+import org.bukkit.event.block.BlockFormEvent;
 import org.bukkit.event.block.BlockFromToEvent;
 
 /**
@@ -26,9 +28,40 @@ public class BlockFromToListener implements Listener {
      *
      * @param event The BlockFromToEvent to handle.
      */
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockFromTo(BlockFromToEvent event) {
-        if (isGraveBlock(event) || event.getToBlock().getType().name().contains("SKULL")) {
+        String toType = event.getToBlock().getType().name();
+
+        if (isGraveBlock(event) || toType.contains("SKULL")
+                || toType.equals("PLAYER_HEAD") || toType.equals("PLAYER_WALL_HEAD")) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Handles BlockFormEvent to prevent forming liquids (e.g. a water source
+     * re-forming between two neighbouring sources) from replacing grave blocks.
+     * Source formation does not fire BlockFromToEvent, so without this a grave
+     * head placed in shallow water is silently destroyed a tick after placement.
+     *
+     * @param event The BlockFormEvent to handle.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBlockForm(BlockFormEvent event) {
+        if (plugin.getCacheManager().getGrave(event.getBlock()) != null) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Handles BlockFadeEvent to prevent environmental block transitions from
+     * removing grave blocks.
+     *
+     * @param event The BlockFadeEvent to handle.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBlockFade(BlockFadeEvent event) {
+        if (plugin.getCacheManager().getGrave(event.getBlock()) != null) {
             event.setCancelled(true);
         }
     }
